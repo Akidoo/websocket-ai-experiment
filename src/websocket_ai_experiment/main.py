@@ -1,66 +1,12 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 import ollama
 import asyncio
 
 app = FastAPI()
 
-html = """
-<!DOCTYPE html>
-<html>
-    <head>
-        <title>Chat with AI</title>
-    </head>
-    <body>
-        <h1>AI Chat</h1>
-       <h2>Your ID: <span id="ws-id"></span></h2>
-        <form action="" onsubmit="sendMessage(event)">
-            <input type="text" id="messageText" autocomplete="off"/>
-            <button>Send</button>
-        </form>
-        <ul id='messages'></ul>
-        <script>
-            const urlParams = new URLSearchParams(window.location.search);
-            var client_id = urlParams.get("id");
-
-            if (!client_id) {
-                client_id = Date.now();
-            }
-            document.querySelector("#ws-id").textContent = client_id;
-            var ws = new WebSocket(`ws://localhost:8000/ws/${client_id}`);
-
-            var currentAIMessage = null;
-
-            ws.onmessage = function(event) {
-                var messages = document.getElementById('messages');
-
-
-                if (event.data.startsWith("You:")) {
-                    var message = document.createElement('li');
-                    message.textContent = event.data;
-                    messages.appendChild(message);
-                    currentAIMessage = null;
-                }
-                else {
-                    if (!currentAIMessage) {
-                        currentAIMessage = document.createElement('li');
-                        
-                        messages.appendChild(currentAIMessage);
-                    }
-                    currentAIMessage.textContent += event.data;
-                }
-            };
-
-            function sendMessage(event) {
-                var input = document.getElementById("messageText");
-                ws.send(input.value);
-                input.value = '';
-                event.preventDefault();
-            }
-        </script>
-    </body>
-</html>
-"""
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 class ConnectionManager:
     def __init__(self):
@@ -86,7 +32,7 @@ manager = ConnectionManager()
 
 @app.get("/")
 async def get():
-    return HTMLResponse(html)
+    return FileResponse("static/frontend.html")
 
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: int):
@@ -109,7 +55,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: int):
                 stream=True
             )
 
-            await manager.send_message("AI: ", client_id)  # prefix
+            await manager.send_message("chungusAI: ", client_id)  # prefix
             for chunk in stream:
                 content = chunk.message.content
                 bot_response += content

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Chat with AI</title>
+    </head>
+    <body>
+        <h1>AI Chat</h1>
+       <h2>Your ID: <span id="ws-id"></span></h2>
+        <form action="" onsubmit="sendMessage(event)">
+            <input type="text" id="messageText" autocomplete="off"/>
+            <button>Send</button>
+        </form>
+        <ul id='messages'></ul>
+        <script>
+            const urlParams = new URLSearchParams(window.location.search);
+            var client_id = urlParams.get("id");
+
+            if (!client_id) {
+                client_id = Date.now();
+            }
+            document.querySelector("#ws-id").textContent = client_id;
+            var ws = new WebSocket(`ws://localhost:8000/ws/${client_id}`);
+
+            var currentAIMessage = null;
+
+            ws.onmessage = function(event) {
+                var messages = document.getElementById('messages');
+
+
+                if (event.data.startsWith("You:")) {
+                    var message = document.createElement('li');
+                    message.textContent = event.data;
+                    messages.appendChild(message);
+                    currentAIMessage = null;
+                }
+                else {
+                    if (!currentAIMessage) {
+                        currentAIMessage = document.createElement('li');
+                        
+                        messages.appendChild(currentAIMessage);
+                    }
+                    currentAIMessage.textContent += event.data;
+                }
+            };
+
+            function sendMessage(event) {
+                var input = document.getElementById("messageText");
+                ws.send(input.value);
+                input.value = '';
+                event.preventDefault();
+            }
+        </script>
+    </body>
+</html>
