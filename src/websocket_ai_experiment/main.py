@@ -1,6 +1,7 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 import ollama
+import asyncio
 
 app = FastAPI()
 
@@ -12,14 +13,19 @@ html = """
     </head>
     <body>
         <h1>AI Chat</h1>
-        <h2>Your ID: <span id="ws-id"></span></h2>
+       <h2>Your ID: <span id="ws-id"></span></h2>
         <form action="" onsubmit="sendMessage(event)">
             <input type="text" id="messageText" autocomplete="off"/>
             <button>Send</button>
         </form>
         <ul id='messages'></ul>
         <script>
-            var client_id = Date.now();
+            const urlParams = new URLSearchParams(window.location.search);
+            var client_id = urlParams.get("id");
+
+            if (!client_id) {
+                client_id = Date.now();
+            }
             document.querySelector("#ws-id").textContent = client_id;
             var ws = new WebSocket(`ws://localhost:8000/ws/${client_id}`);
 
@@ -104,13 +110,14 @@ async def websocket_endpoint(websocket: WebSocket, client_id: int):
             )
 
             await manager.send_message("AI: ", client_id)  # prefix
-            async_part = ""
             for chunk in stream:
                 content = chunk.message.content
                 bot_response += content
-                async_part += content
-                await manager.send_message(content, client_id)  # stream to client
 
+                for ch in content:
+                    await manager.send_message(ch, client_id)
+                    await asyncio.sleep(0.02)
+    
            
             bot_message = {"role": "assistant", "content": bot_response}
             manager.histories[client_id].append(bot_message)
