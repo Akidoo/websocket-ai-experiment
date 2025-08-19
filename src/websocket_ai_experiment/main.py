@@ -1,5 +1,6 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
+import ollama
 
 app = FastAPI()
 
@@ -7,33 +8,48 @@ html = """
 <!DOCTYPE html>
 <html>
     <head>
-        <title>Chat</title>
+        <title>Chat with AI</title>
     </head>
     <body>
-        <h1>WebSocket Chat</h1>
+        <h1>AI Chat</h1>
         <h2>Your ID: <span id="ws-id"></span></h2>
         <form action="" onsubmit="sendMessage(event)">
             <input type="text" id="messageText" autocomplete="off"/>
             <button>Send</button>
         </form>
-        <ul id='messages'>
-        </ul>
+        <ul id='messages'></ul>
         <script>
-            var client_id = Date.now()
+            var client_id = Date.now();
             document.querySelector("#ws-id").textContent = client_id;
             var ws = new WebSocket(`ws://localhost:8000/ws/${client_id}`);
+
+            var currentAIMessage = null;
+
             ws.onmessage = function(event) {
-                var messages = document.getElementById('messages')
-                var message = document.createElement('li')
-                var content = document.createTextNode(event.data)
-                message.appendChild(content)
-                messages.appendChild(message)
+                var messages = document.getElementById('messages');
+
+
+                if (event.data.startsWith("You:")) {
+                    var message = document.createElement('li');
+                    message.textContent = event.data;
+                    messages.appendChild(message);
+                    currentAIMessage = null;
+                }
+                else {
+                    if (!currentAIMessage) {
+                        currentAIMessage = document.createElement('li');
+                        
+                        messages.appendChild(currentAIMessage);
+                    }
+                    currentAIMessage.textContent += event.data;
+                }
             };
+
             function sendMessage(event) {
-                var input = document.getElementById("messageText")
-                ws.send(input.value)
-                input.value = ''
-                event.preventDefault()
+                var input = document.getElementById("messageText");
+                ws.send(input.value);
+                input.value = '';
+                event.preventDefault();
             }
         </script>
     </body>
@@ -42,21 +58,23 @@ html = """
 
 class ConnectionManager:
     def __init__(self):
-        self.active_connections: list[WebSocket] = []
+        self.active_connections: dict[int, WebSocket] = {}
+        self.histories: dict[int, list[dict]]= {}
 
-    async def connect(self, websocket: WebSocket):
+    async def connect(self, websocket: WebSocket, client_id: int):
         await websocket.accept()
-        self.active_connections.append(websocket)
+        self.active_connections[client_id] = websocket
+        self.histories[client_id] = []
 
-    def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+    def disconnect(self, client_id: int):
+        self.active_connections.pop(client_id, None)
+        self.histories.pop(client_id, None)
 
-    async def send_personal_message(self, message: str, websocket: WebSocket):
-        await websocket.send_text(message)
+    async def send_message(self, message: str, client_id: int):
+        websocket = self.active_connections.get(client_id)
+        if websocket:
+            await websocket.send_text(message)
 
-    async def broadcast(self, message: str):
-        for connection in self.active_connections:
-            await connection.send_text(message)
 
 manager = ConnectionManager()
 
@@ -66,12 +84,37 @@ async def get():
 
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: int):
-    await manager.connect(websocket)
+    await manager.connect(websocket, client_id)
     try:
         while True:
             data = await websocket.receive_text()
+
+            user_message = {"role": "user", "content": data}
+            manager.histories[client_id].append(user_message)
            # await manager.send_personal_message(f"You: {data}", websocket)
-            await manager.broadcast(f"Client #{client_id}: {data}")
+            await manager.send_message(f"You: {data}", client_id)
+
+        
+
+            bot_response = ""
+            stream = ollama.chat(
+                model="phi3:mini",
+                messages=manager.histories[client_id],
+                stream=True
+            )
+
+            await manager.send_message("AI: ", client_id)  # prefix
+            async_part = ""
+            for chunk in stream:
+                content = chunk.message.content
+                bot_response += content
+                async_part += content
+                await manager.send_message(content, client_id)  # stream to client
+
+           
+            bot_message = {"role": "assistant", "content": bot_response}
+            manager.histories[client_id].append(bot_message)
+
+
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
-        await manager.broadcast(f"Client #{client_id} left the chat")
+        manager.disconnect(client_id)
