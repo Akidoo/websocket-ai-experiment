@@ -3,10 +3,14 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 import ollama
 import asyncio
+from pathlib import Path
+import uvicorn
 
 app = FastAPI()
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+root_dir = Path('./')
+static_dir = root_dir / "static"
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 class ConnectionManager:
     def __init__(self):
@@ -43,7 +47,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: int):
 
             user_message = {"role": "user", "content": data}
             manager.histories[client_id].append(user_message)
-           # await manager.send_personal_message(f"You: {data}", websocket)
+        # await manager.send_personal_message(f"You: {data}", websocket)
             await manager.send_message(f"You: {data}", client_id)
 
         
@@ -64,10 +68,13 @@ async def websocket_endpoint(websocket: WebSocket, client_id: int):
                     await manager.send_message(ch, client_id)
                     await asyncio.sleep(0.02)
     
-           
+        
             bot_message = {"role": "assistant", "content": bot_response}
             manager.histories[client_id].append(bot_message)
 
 
     except WebSocketDisconnect:
         manager.disconnect(client_id)
+
+def main():
+    uvicorn.run(app, host="127.0.0.1", port=8000)

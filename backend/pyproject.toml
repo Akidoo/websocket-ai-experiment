@@ -10,3 +10,6 @@ dependencies = [
     "uuid>=1.30",
     "websockets>=15.0.1",
 ]
+
+[project.scripts]
+main = "websocket_ai_experiment:main.main"
