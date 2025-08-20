@@ -1,54 +1,166 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <title>Chat with AI</title>
-    </head>
-    <body>
-        <h1>AI Chat</h1>
-       <h2>Your ID: <span id="ws-id"></span></h2>
-        <form action="" onsubmit="sendMessage(event)">
-            <input type="text" id="messageText" autocomplete="off"/>
+
+<head>
+    <title>Chat with AI</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f7fa;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .chat-container {
+            width: 400px;
+            max-width: 95%;
+            height: 600px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            background: #4a90e2;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .chat-header span {
+            font-size: 14px;
+            display: block;
+            font-weight: normal;
+            opacity: 0.9;
+        }
+
+        #messages {
+            list-style: none;
+            padding: 15px;
+            margin: 0;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        #messages li {
+            margin: 10px 0;
+            max-width: 70%;
+            padding: 10px 15px;
+            border-radius: 18px;
+            line-height: 1.4;
+            word-wrap: break-word;
+        }
+
+        #messages li.user {
+            background: #4a90e2;
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+
+
+        #messages li.ai {
+            background: #e5e5ea;
+            color: #333;
+            margin-right: auto;
+            border-bottom-left-radius: 4px;
+        }
+
+        .chat-input {
+            display: flex;
+            padding: 10px;
+            border-top: 1px solid #ddd;
+            background: #fafafa;
+        }
+
+        .chat-input input {
+            flex: 1;
+            padding: 10px 12px;
+            border-radius: 20px;
+            border: 1px solid #ccc;
+            outline: none;
+            font-size: 14px;
+        }
+
+        .chat-input button {
+            margin-left: 8px;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 20px;
+            background: #4a90e2;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .chat-input button:hover {
+            background: #3a78c2;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            AI Chat
+            <span>Your ID: <span id="ws-id"></span></span>
+        </div>
+
+        <ul id="messages"></ul>
+
+        <form class="chat-input" onsubmit="sendMessage(event)">
+            <input type="text" id="messageText" autocomplete="off" placeholder="Type a message..." />
             <button>Send</button>
         </form>
-        <ul id='messages'></ul>
-        <script>
-            const urlParams = new URLSearchParams(window.location.search);
-            var client_id = urlParams.get("id");
+    </div>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        var client_id = urlParams.get("id");
 
-            if (!client_id) {
-                client_id = Date.now();
+        if (!client_id) {
+            client_id = Date.now();
+        }
+        document.querySelector("#ws-id").textContent = client_id;
+        var ws = new WebSocket(`ws://localhost:8000/ws/${client_id}`);
+
+        var currentAIMessage = null;
+
+        ws.onmessage = function (event) {
+            var messages = document.getElementById('messages');
+
+
+            if (event.data.startsWith("You:")) {
+                var message = document.createElement('li');
+                message.textContent = event.data;
+                messages.appendChild(message);
+                currentAIMessage = null;
             }
-            document.querySelector("#ws-id").textContent = client_id;
-            var ws = new WebSocket(`ws://localhost:8000/ws/${client_id}`);
+            else {
+                if (!currentAIMessage) {
+                    currentAIMessage = document.createElement('li');
 
-            var currentAIMessage = null;
-
-            ws.onmessage = function(event) {
-                var messages = document.getElementById('messages');
-
-
-                if (event.data.startsWith("You:")) {
-                    var message = document.createElement('li');
-                    message.textContent = event.data;
-                    messages.appendChild(message);
-                    currentAIMessage = null;
+                    messages.appendChild(currentAIMessage);
                 }
-                else {
-                    if (!currentAIMessage) {
-                        currentAIMessage = document.createElement('li');
-                        
-                        messages.appendChild(currentAIMessage);
-                    }
-                    currentAIMessage.textContent += event.data;
-                }
-            };
-
-            function sendMessage(event) {
-                var input = document.getElementById("messageText");
-                ws.send(input.value);
-                input.value = '';
-                event.preventDefault();
+                currentAIMessage.textContent += event.data;
             }
-        </script>
-    </body>
+        };
+
+        function sendMessage(event) {
+            var input = document.getElementById("messageText");
+            ws.send(input.value);
+            input.value = '';
+            event.preventDefault();
+        }
+    </script>
+</body>
+
 </html>
