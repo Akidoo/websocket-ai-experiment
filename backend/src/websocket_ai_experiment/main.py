@@ -8,8 +8,8 @@ import uvicorn
 
 app = FastAPI()
 
-root_dir = Path('./')
-static_dir = root_dir / "static"
+BASE_DIR = Path(__file__).resolve().parents[2]  # this points to backend/
+static_dir = BASE_DIR / "static"
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 class ConnectionManager:
@@ -36,7 +36,7 @@ manager = ConnectionManager()
 
 @app.get("/")
 async def get():
-    return FileResponse("static/frontend.html")
+    return FileResponse(static_dir / "frontend.html")
 
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: int):
